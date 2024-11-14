@@ -1,0 +1,48 @@
+# Core dependencies
+pymongo>=4.0.0
+python-dotenv>=0.19.0
+pandas>=1.4.0
+numpy>=1.21.0
+
+# OCR and Image Processing
+opencv-python>=4.8.0
+pytesseract>=0.3.10
+Pillow>=10.0.0  # Para manejo adicional de imágenes
+
+# PDF Generation and Processing
+reportlab>=4.0.4  # Para generar PDFs de encuestas
+PyPDF2>=3.0.0    # Para manipulación de PDFs
+
+# Data Analysis and Visualization
+matplotlib>=3.7.0
+seaborn>=0.12.0
+plotly>=5.18.0   # Para visualizaciones interactivas
+
+# Web Interface
+streamlit>=1.28.0  # Para la interfaz de usuario
+Flask>=3.0.0      # Para el servidor web
+
+# Testing
+pytest>=7.0.0
+pytest-cov>=3.0.0
+pytest-mock>=3.12.0
+
+# Utilities
+python-dateutil>=2.8.2
+loguru>=0.6.0
+tqdm>=4.66.0      # Para barras de progreso
+
+# Cloud Storage
+google-cloud-storage>=2.13.0  # Para respaldo en Google Drive
+python-magic>=0.4.27         # Para detección de tipos MIME
+
+# Development and Code Quality
+black>=22.0.0
+flake8>=4.0.0
+isort>=5.10.0
+mypy>=1.7.0      # Para verificación de tipos
+pre-commit>=3.5.0 # Para hooks de git
+
+# Documentation
+Sphinx>=7.2.0
+sphinx-rtd-theme>=1.3.0
