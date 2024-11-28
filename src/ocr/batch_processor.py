@@ -1,12 +1,138 @@
+# src/ocr/batch_processor.py
+
+import re
 import cv2
 import logging
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Optional
-from .preprocessor import ImagePreprocessor
+from typing import Dict, List, Optional, Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from .preprocessor import ImagePreprocessor
+import numpy as np
+import pytesseract
+from .scanner import SurveyScanner
 
 logger = logging.getLogger(__name__)
+
+class BatchProcessor:
+   def __init__(self):
+       self.preprocessor = ImagePreprocessor()
+       self.scanner = SurveyScanner()
+       
+   async def process_image(self, image_path: str) -> Dict[str, Any]:
+       try:
+           processed_image = self.preprocessor.preprocess_image(image_path)
+           
+           participant_id = self._extract_participant_id(processed_image)
+           responses = self._process_responses(processed_image) 
+           confidence = self._calculate_confidence(responses)
+           
+           return {
+               "participant_id": participant_id,
+               "responses": responses,
+               "confidence": confidence,
+               "processed_at": datetime.now().isoformat()
+           }
+           
+       except Exception as e:
+           logger.error(f"Error procesando imagen {image_path}: {e}")
+           raise
+           
+   def _extract_participant_id(self, image) -> str:
+       try:
+           height = image.shape[0]
+           header_region = image[0:int(height * 0.2), :]
+           enhanced = self.preprocessor._enhance_text_region(header_region)
+           header_text = self.scanner._process_text(enhanced)
+           
+           match = re.search(r'ID_PARTICIPANTE\s*(\d+)', header_text)
+           if match:
+               return match.group(1).strip()
+           return ""
+           
+       except Exception as e:
+           logger.error(f"Error extrayendo ID: {e}")
+           return ""
+
+   def _process_responses(self, image) -> Dict[str, str]:
+       try:
+           responses = {}
+           enhanced_image = self.preprocessor._enhance_text_region(image)
+           text = self.scanner._process_text(enhanced_image)
+           
+           lines = text.split('\n')
+           current_question = None
+           
+           for line in lines:
+               line = line.strip()
+               
+               if '$' in line:
+                   if current_question:
+                       responses[current_question] = []
+                   question_text = line[line.index('$')+1:].strip()
+                   current_question = question_text
+                   continue
+               
+               if current_question and re.match(r'^\d+[\s_]*$', line):
+                   num = re.match(r'^\d+', line).group()
+                   region = self._get_line_region(image, line)
+                   if region is not None and self._detect_mark(region):
+                       if current_question not in responses:
+                           responses[current_question] = []
+                       responses[current_question].append(num)
+           
+           return responses
+               
+       except Exception as e:
+           logger.error(f"Error procesando respuestas: {e}")
+           return {}
+
+   def _get_line_region(self, image: np.ndarray, line_text: str) -> Optional[np.ndarray]:
+       try:
+           height = image.shape[0]
+           section_height = 50
+           
+           for i in range(0, height, section_height):
+               section = image[i:min(i + section_height, height), :]
+               section_text = self.scanner._process_text(section)
+               if line_text in section_text:
+                   return section
+           return None
+           
+       except Exception as e:
+           logger.error(f"Error obteniendo región de línea: {e}")
+           return None
+       
+   def _calculate_confidence(self, responses: Dict[str, str]) -> float:
+       try:
+           if not responses:
+               return 0.0
+           total_questions = len(responses)
+           answered_questions = sum(1 for response in responses.values() if response)
+           return answered_questions / total_questions
+           
+       except Exception as e:
+           logger.error(f"Error calculando confianza: {e}")
+           return 0.0
+   
+   def _detect_mark(self, image_region: np.ndarray) -> bool:
+       try:
+           if image_region is None or image_region.size == 0:
+               return False
+
+           enhanced = self.preprocessor._enhance_marks_region(image_region)
+           contours, _ = cv2.findContours(enhanced, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+           
+           for contour in contours:
+               area = cv2.contourArea(contour)
+               if area > 50:
+                   return True
+           return False
+           
+       except Exception as e:
+           logger.error(f"Error detectando marca: {e}")
+           return False
+
 
 class SimpleBatchProcessor:
     """Clase para procesar múltiples imágenes en una carpeta."""
@@ -101,42 +227,25 @@ class SimpleBatchProcessor:
         
         return results
 
-    def _process_image(self, img_path: Path) -> Optional[Dict]:
-        """
-        Procesa una sola imagen.
-        
-        Args:
-            img_path: Ruta de la imagen a procesar
-            
-        Returns:
-            Optional[Dict]: Diccionario con información del procesamiento o None si falló
-        """
+    def process_image(self, image_path: str) -> Dict[str, Any]:
         try:
-            logger.debug(f"Procesando imagen: {img_path.name}")
-            processed = self.preprocessor.preprocess_image(str(img_path))
+            processed_image = self.preprocessor.preprocess_image(image_path)
+            if processed_image is None:
+                raise ValueError("No se pudo procesar la imagen")
+                
+            participant_id = self._extract_participant_id(processed_image)
+            responses = self._process_responses(processed_image)
+            confidence = self._calculate_confidence(responses)
             
-            if processed is not None:
-                # Evaluar calidad
-                quality = self.preprocessor.assess_quality(processed)
-                
-                # Guardar imagen procesada
-                output_path = self.output_dir / f"processed_{img_path.name}"
-                cv2.imwrite(str(output_path), processed)
-                
-                logger.info(f"Imagen procesada: {img_path.name} con calidad {quality:.2f}")
-                
-                return {
-                    'filename': img_path.name,
-                    'quality': quality,
-                    'output_path': str(output_path)
-                }
-            else:
-                logger.warning(f"No se pudo procesar {img_path.name}")
-                return None
-                
+            return {
+                "participant_id": participant_id,
+                "responses": responses,
+                "confidence": confidence,
+                "processed_at": datetime.now().isoformat()
+            }
         except Exception as e:
-            logger.error(f"Error procesando {img_path.name}: {str(e)}")
-            return None
+            logger.error(f"Error procesando imagen {image_path}: {e}")
+            raise
 
     def _print_summary(self, results: Dict):
         """

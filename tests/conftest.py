@@ -8,6 +8,16 @@ from typing import Dict, Generator
 from src.database.db_manager import DatabaseManager
 import cv2
 import numpy as np
+import sys
+import asyncio
+from PyQt6.QtWidgets import QApplication
+
+
+# Añadir esta sección justo después de los imports
+# Configurar PYTHONPATH
+root_dir = Path(__file__).parent.parent
+if str(root_dir) not in sys.path:
+    sys.path.insert(0, str(root_dir))
 
 
 def pytest_configure(config):
@@ -25,6 +35,10 @@ def pytest_configure(config):
         "markers", 
         "integration: marca pruebas de integración"
     )
+    config.addinivalue_line(
+        "markers",
+        "tesseract: mark tests that require tesseract to be installed"
+    )
     
     # Crear directorios necesarios para pruebas
     test_dirs = [
@@ -38,10 +52,9 @@ def pytest_configure(config):
 # Configuración de pytest-asyncio
 pytest_plugins = ['pytest_asyncio']
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope='function')
 def event_loop():
-    """Create an instance of the default event loop for each test case."""
-    import asyncio
+    """Create an event loop for each test."""
     loop = asyncio.get_event_loop_policy().new_event_loop()
     yield loop
     loop.close()
@@ -66,13 +79,21 @@ def mock_db() -> Generator[mongomock.Database, None, None]:
     db = client['test_db']
     
     # Crear colecciones necesarias
-    collections = ['activities', 'participants', 'surveys', 'test_collection']
+    collections = [
+        'activities', 
+        'participants', 
+        'surveys', 
+        'test_collection', 
+        'survey_results'  # Añadido survey_results
+    ]
     for collection in collections:
         db.create_collection(collection)
     
     # Crear índices necesarios
     db.activities.create_index([('id', pymongo.ASCENDING)], unique=True)
     db.participants.create_index([('id', pymongo.ASCENDING)], unique=True)
+    db.survey_results.create_index([('activity_id', pymongo.ASCENDING)])  # Nuevo índice
+    db.survey_results.create_index([('processed_at', pymongo.ASCENDING)]) # Nuevo índice
     
     yield db
     
@@ -96,7 +117,13 @@ def db_manager(test_environment) -> Generator[DatabaseManager, None, None]:
     yield manager
     
     # Limpiar colecciones después de las pruebas
-    collections = ['test_collection', 'activities', 'participants', 'surveys']
+    collections = [
+        'test_collection', 
+        'activities', 
+        'participants', 
+        'surveys', 
+        'survey_results'  # Añadido survey_results
+    ]
     for collection in collections:
         try:
             manager.db[collection].drop()
@@ -198,12 +225,7 @@ def pytest_collection_modifyitems(config, items):
             if "slow" in item.keywords:
                 item.add_marker(skip_slow)
 
-def pytest_configure(config):
-    """Configure pytest."""
-    config.addinivalue_line(
-        "markers",
-        "tesseract: mark tests that require tesseract to be installed"
-    )
+
 
 
 # Nuevos fixtures para OCR testing
@@ -315,3 +337,17 @@ def sample_noisy_image(sample_image):
     noise = np.random.normal(0, 25, sample_image.shape).astype(np.uint8)
     noisy = cv2.add(sample_image, noise)
     return noisy
+
+@pytest.fixture(autouse=True)
+async def run_around_tests():
+    """Fixture to properly handle async/await in tests."""
+    yield
+
+@pytest.fixture(scope='session')
+def qapp():
+    """Create a QApplication instance for the entire test session."""
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+    yield app
+    app.quit()

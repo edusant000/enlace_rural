@@ -25,24 +25,26 @@ class SurveyScanner:
     
     VALID_FIELD_TYPES = ['text', 'checkbox', 'number']
     
+    # src/ocr/scanner.py
+
     def __init__(self, template_path: Optional[str] = None):
-        """
-        Inicializa el scanner de encuestas.
-        
-        Args:
-            template_path: Ruta opcional al template de la encuesta
-            
-        Raises:
-            FileNotFoundError: Si el template no existe
-            ValueError: Si el template no se puede cargar
-        """
         self.logger = logging.getLogger(__name__)
         self.template = self._load_template(template_path) if template_path else None
         self.fields: List[SurveyField] = []
         
-        # Configurar Tesseract
-        tessdata_dir = os.getenv('TESSDATA_PREFIX', '/usr/local/share/tessdata')
-        custom_config = f'--tessdata-dir "{tessdata_dir}" --oem 3 --psm 6'
+        # Configurar Tesseract con la ruta correcta
+        pytesseract.pytesseract.tesseract_cmd = '/usr/local/bin/tesseract'  # Cambiado de /opt/homebrew/bin/tesseract
+        tessdata_path = '/usr/local/share/tessdata'
+        
+        # Configuración completa de OCR
+        custom_config = (
+            f'--tessdata-dir "{tessdata_path}" '
+            '--oem 3 '
+            '--psm 6 '
+            '-l spa ' # Añadir español
+            '-c preserve_interword_spaces=1 '
+            '-c tessedit_char_whitelist="ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚÑ0123456789_$:/ "' # Expandir caracteres permitidos
+        )
         self.tesseract_config = custom_config
         
     def _load_template(self, template_path: str) -> np.ndarray:

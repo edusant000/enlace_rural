@@ -6,6 +6,7 @@ from bson.objectid import ObjectId
 from functools import wraps
 import time
 from datetime import datetime, timezone
+from bson import ObjectId
 
 logger = logging.getLogger(__name__)
 
@@ -121,17 +122,17 @@ class DatabaseManager:
             # Índices para activities
             if 'activities' in self.db.list_collection_names():
                 self.db.activities.create_indexes([
-                    IndexModel([('id', ASCENDING)], unique=True),
+                    # Quitamos el índice de 'id' ya que usaremos '_id' que ya es único por defecto
                     IndexModel([('coordinator_id', ASCENDING)]),
                     IndexModel([('status', ASCENDING)]),
                     IndexModel([('created_at', ASCENDING)]),
                     IndexModel([('updated_at', ASCENDING)])
                 ])
-            
+
             # Índices para participants
             if 'participants' in self.db.list_collection_names():
                 self.db.participants.create_indexes([
-                    IndexModel([('id', ASCENDING)], unique=True),
+                    # Quitamos el índice de 'id' ya que usaremos '_id' que ya es único por defecto
                     IndexModel([('community', ASCENDING)]),
                     IndexModel([('name', ASCENDING)]),
                     IndexModel([('created_at', ASCENDING)])
@@ -144,6 +145,23 @@ class DatabaseManager:
                     IndexModel([('activity_id', ASCENDING)]),
                     IndexModel([('date', ASCENDING)])
                 ])
+
+            # Nuevos índices para survey_results
+            if 'survey_results' in self.db.list_collection_names():
+                self.db.survey_results.create_indexes([
+                    IndexModel([('participant_id', ASCENDING)]),
+                    IndexModel([('activity_id', ASCENDING)]),
+                    IndexModel([('processed_at', ASCENDING)]),
+                    # Índice compuesto para búsquedas comunes
+                    IndexModel([
+                        ('activity_id', ASCENDING), 
+                        ('processed_at', ASCENDING)
+                    ]),
+                    # Índice para búsquedas por confianza
+                    IndexModel([('confidence', ASCENDING)]),
+                    # Índice de texto para búsquedas en notas
+                    IndexModel([('notes', 'text')])
+                ])
             
             logger.info("Índices verificados/creados exitosamente")
             
@@ -153,9 +171,6 @@ class DatabaseManager:
 
     @retry_on_disconnect()
     def insert_one(self, collection: str, document: Dict) -> Optional[str]:
-        """
-        Inserta un documento en la colección especificada.
-        """
         try:
             if not isinstance(document, dict):
                 raise OperationError("El documento debe ser un diccionario")
@@ -165,12 +180,12 @@ class DatabaseManager:
             if 'updated_at' not in document:
                 document['updated_at'] = document['created_at']
                 
-            result = self.db[collection].insert_one(document)
+            serialized = self._serialize_for_mongo(document)
+            result = self.db[collection].insert_one(serialized)
             logger.info(f"Documento insertado exitosamente en {collection}")
             return str(result.inserted_id)
             
         except (AutoReconnect, OperationFailure) as e:
-            # Re-levantar para que lo maneje el decorador
             raise
         except DuplicateKeyError as e:
             logger.error(f"Error de duplicado al insertar en {collection}: {str(e)}")
@@ -178,6 +193,127 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error al insertar documento en {collection}: {str(e)}")
             raise OperationError(f"Error al insertar documento: {str(e)}")
+        
+    def _serialize_for_mongo(self, document):
+        """Serializa documentos para MongoDB"""
+        if isinstance(document, dict):
+            return {k: self._serialize_for_mongo(v) for k, v in document.items()}
+        elif isinstance(document, (list, tuple)):
+            return [self._serialize_for_mongo(x) for x in document]
+        elif isinstance(document, datetime.date):
+            return datetime.datetime.combine(document, datetime.datetime.min.time())
+        return document
+        
+    
+    @retry_on_disconnect()
+    def find_many(self, collection: str, query: Dict) -> List[Dict]:
+        """
+        Encuentra múltiples documentos en una colección.
+        
+        Args:
+            collection: Nombre de la colección
+            query: Criterios de búsqueda
+            
+        Returns:
+            Lista de documentos encontrados
+        """
+        try:
+            cursor = self.db[collection].find(query)
+            return list(cursor)
+        except (AutoReconnect, OperationFailure) as e:
+            raise
+        except Exception as e:
+            logger.error(f"Error al buscar documentos en {collection}: {str(e)}")
+            raise OperationError(f"Error al buscar documentos: {str(e)}")
+
+    @retry_on_disconnect()
+    def find_one(self, collection: str, query: Dict) -> Optional[Dict]:
+        """
+        Encuentra un documento en una colección.
+        
+        Args:
+            collection: Nombre de la colección
+            query: Criterios de búsqueda
+            
+        Returns:
+            Documento encontrado o None
+        """
+        try:
+            return self.db[collection].find_one(query)
+        except (AutoReconnect, OperationFailure) as e:
+            raise
+        except Exception as e:
+            logger.error(f"Error al buscar documento en {collection}: {str(e)}")
+            raise OperationError(f"Error al buscar documento: {str(e)}")
+
+    @retry_on_disconnect()
+    def update_one(self, collection: str, query: Dict, update: Dict) -> bool:
+        """
+        Actualiza un documento en una colección.
+        
+        Args:
+            collection: Nombre de la colección
+            query: Criterios de búsqueda
+            update: Modificaciones a realizar
+            
+        Returns:
+            True si se actualizó algún documento, False en caso contrario
+        """
+        try:
+            if 'updated_at' not in update.get('$set', {}):
+                if '$set' not in update:
+                    update['$set'] = {}
+                update['$set']['updated_at'] = datetime.now(timezone.utc)
+                
+            result = self.db[collection].update_one(query, update)
+            return result.modified_count > 0
+        except (AutoReconnect, OperationFailure) as e:
+            raise
+        except Exception as e:
+            logger.error(f"Error al actualizar documento en {collection}: {str(e)}")
+            raise OperationError(f"Error al actualizar documento: {str(e)}")
+
+    @retry_on_disconnect()
+    def delete_one(self, collection: str, query: Dict) -> bool:
+        """
+        Elimina un documento de una colección.
+        
+        Args:
+            collection: Nombre de la colección
+            query: Criterios de búsqueda
+            
+        Returns:
+            True si se eliminó algún documento, False en caso contrario
+        """
+        try:
+            result = self.db[collection].delete_one(query)
+            return result.deleted_count > 0
+        except (AutoReconnect, OperationFailure) as e:
+            raise
+        except Exception as e:
+            logger.error(f"Error al eliminar documento en {collection}: {str(e)}")
+            raise OperationError(f"Error al eliminar documento: {str(e)}")
+
+    @retry_on_disconnect()
+    def count_documents(self, collection: str, query: Dict) -> int:
+        """
+        Cuenta los documentos que coinciden con la consulta.
+        
+        Args:
+            collection: Nombre de la colección
+            query: Criterios de búsqueda
+            
+        Returns:
+            Número de documentos que coinciden
+        """
+        try:
+            return self.db[collection].count_documents(query)
+        except (AutoReconnect, OperationFailure) as e:
+            raise
+        except Exception as e:
+            logger.error(f"Error al contar documentos en {collection}: {str(e)}")
+            raise OperationError(f"Error al contar documentos: {str(e)}")
+
 
     def __del__(self):
         """Cierra la conexión cuando el objeto es destruido."""

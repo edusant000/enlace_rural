@@ -1,0 +1,182 @@
+/* Estilos base */
+#leftPanel {
+    background-color: #ffffff;
+    border-right: 1px solid #e1e1e1;
+    min-width: 300px;
+    max-width: 400px;
+}
+
+#rightPanel {
+    background-color: #f0f2f5;
+}
+
+/* Barra de búsqueda */
+SearchBar {
+    padding: 8px 12px;
+    border: none;
+    border-radius: 8px;
+    background-color: #f0f2f5;
+    color: #333333;
+    font-size: 13px;
+    margin: 8px;
+}
+
+SearchBar:focus {
+    background-color: #ffffff;
+    border: 1px solid #128c7e;
+}
+
+/* Botones */
+QPushButton {
+    padding: 8px 16px;
+    border-radius: 4px;
+    border: none;
+    color: white;
+    background-color: #128c7e;
+    font-weight: bold;
+}
+
+QPushButton:hover {
+    background-color: #075e54;
+}
+
+QPushButton:disabled {
+    background-color: #cccccc;
+}
+
+QPushButton#deleteButton {
+    background-color: #dc3545;
+}
+
+QPushButton#deleteButton:hover {
+    background-color: #c82333;
+}
+
+/* Lista de actividades */
+QListWidget#activitiesList {
+    background-color: #ffffff;
+    border: none;
+}
+
+QListWidget#activitiesList::item {
+    border-bottom: 1px solid #f0f2f5;
+    padding: 12px;
+}
+
+QListWidget#activitiesList::item:selected {
+    background-color: #f0f2f5;
+    border-left: 3px solid #128c7e;
+}
+
+QListWidget#activitiesList::item:hover {
+    background-color: #f5f5f5;
+}
+
+/* Panel de información de actividad */
+QLabel#activityTitle {
+    font-size: 18px;
+    font-weight: bold;
+    color: #128c7e;
+    padding: 16px;
+}
+
+QLabel#activityInfo {
+    background-color: #ffffff;
+    border-radius: 8px;
+    padding: 16px;
+    margin: 8px;
+}
+
+/* Tabla de participantes */
+QTableWidget {
+    background-color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    margin: 8px;
+}
+
+QTableWidget::item {
+    padding: 8px;
+}
+
+QTableWidget QHeaderView::section {
+    background-color: #f0f2f5;
+    padding: 8px;
+    border: none;
+    font-weight: bold;
+}
+
+/* Filtros y combos */
+QComboBox {
+    padding: 6px;
+    border: 1px solid #e1e1e1;
+    border-radius: 4px;
+    background-color: white;
+}
+
+QComboBox:hover {
+    border-color: #128c7e;
+}
+
+QComboBox::drop-down {
+    border: none;
+}
+
+QComboBox::down-arrow {
+    width: 12px;
+    height: 12px;
+}
+
+/* Fechas */
+QDateEdit {
+    padding: 6px;
+    border: 1px solid #e1e1e1;
+    border-radius: 4px;
+    background-color: white;
+}
+
+/* Scrollbars */
+QScrollBar:vertical {
+    border: none;
+    background: #f0f2f5;
+    width: 8px;
+    margin: 0px;
+}
+
+QScrollBar::handle:vertical {
+    background: #128c7e;
+    border-radius: 4px;
+    min-height: 30px;
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    border: none;
+    background: none;
+}
+
+/* Indicadores de estado */
+.status-badge {
+    padding: 4px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    color: white;
+}
+
+.status-active {
+    background-color: #25d366;
+}
+
+.status-pending {
+    background-color: #ffc107;
+}
+
+.status-completed {
+    background-color: #128c7e;
+}
+
+/* Etiqueta de actividades vacías */
+QLabel#emptyLabel {
+    font-size: 14px;
+    color: #7F8C8D;
+    padding: 20px;
+}

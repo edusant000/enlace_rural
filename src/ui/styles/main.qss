@@ -1,0 +1,107 @@
+/* src/ui/styles/main.qss */
+
+/* Estilos generales */
+QMainWindow {
+    background-color: #f0f2f5;
+}
+
+/* Panel izquierdo (lista de actividades) */
+QListWidget {
+    background-color: #ffffff;
+    border: none;
+    border-right: 1px solid #e0e0e0;
+    font-size: 14px;
+    padding: 5px;
+}
+
+QListWidget::item {
+    background-color: #ffffff;
+    border-radius: 8px;
+    padding: 10px;
+    margin: 2px 5px;
+}
+
+QListWidget::item:selected {
+    background-color: #e8f5fe;
+    color: #0088cc;
+}
+
+QListWidget::item:hover {
+    background-color: #f5f5f5;
+}
+
+/* Botones */
+QPushButton {
+    background-color: #0088cc;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: bold;
+}
+
+QPushButton:hover {
+    background-color: #006699;
+}
+
+QPushButton:pressed {
+    background-color: #005580;
+}
+
+QPushButton:disabled {
+    background-color: #cccccc;
+}
+
+/* Panel derecho */
+QStackedWidget {
+    background-color: #ffffff;
+    border-left: 1px solid #e0e0e0;
+}
+
+/* Scrollbars */
+QScrollBar:vertical {
+    border: none;
+    background-color: #f0f2f5;
+    width: 8px;
+    margin: 0px;
+}
+
+QScrollBar::handle:vertical {
+    background-color: #c1c1c1;
+    border-radius: 4px;
+    min-height: 20px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background-color: #a8a8a8;
+}
+
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+
+/* Labels y texto */
+QLabel {
+    color: #1f1f1f;
+    font-size: 13px;
+}
+
+/* Campos de entrada */
+QLineEdit {
+    padding: 8px;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    background-color: #ffffff;
+}
+
+QLineEdit:focus {
+    border: 1px solid #0088cc;
+}
+
+/* Separadores */
+QFrame[frameShape="4"] {
+    color: #e0e0e0;
+    width: 1px;
+}

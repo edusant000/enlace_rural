@@ -6,6 +6,60 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+class Preprocessor:
+    """Clase para preprocesamiento de imágenes específicamente para encuestas."""
+    
+    async def preprocess_image(self, image_path: str) -> np.ndarray:
+        """
+        Preprocesa una imagen para optimizar el OCR de encuestas.
+        
+        Args:
+            image_path: Ruta de la imagen a procesar
+            
+        Returns:
+            np.ndarray: Imagen preprocesada
+        """
+        try:
+            # Cargar imagen
+            image = cv2.imread(image_path)
+            if image is None:
+                raise ValueError(f"No se pudo cargar la imagen: {image_path}")
+
+            # Convertir a escala de grises
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            
+            # Aplicar umbral adaptativo
+            thresh = cv2.adaptiveThreshold(
+                gray,
+                255,
+                cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                cv2.THRESH_BINARY,
+                11,
+                2
+            )
+            
+            # Reducir ruido
+            denoised = cv2.fastNlMeansDenoising(thresh)
+            
+            return denoised
+            
+        except Exception as e:
+            logger.error(f"Error en preprocesamiento de imagen {image_path}: {e}")
+            raise
+
+    async def detect_marks(self, image: np.ndarray) -> List[Dict[str, Union[str, float]]]:
+        """
+        Detecta marcas (X) en casillas de la encuesta.
+        
+        Args:
+            image: Imagen preprocesada
+            
+        Returns:
+            List de diccionarios con ubicación y confianza de cada marca
+        """
+        # TODO: Implementar detección real de marcas
+        return []
+
 class ImagePreprocessor:
     """
     Clase para preprocesar imágenes antes del OCR.
@@ -208,28 +262,26 @@ class ImagePreprocessor:
             return 0.0
 
     def _process_steps(self, image: np.ndarray) -> np.ndarray:
-        """
-        Aplica todos los pasos de preprocesamiento en orden.
-        """
-        # Convertir a escala de grises si es necesario
         if len(image.shape) == 3:
             gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         else:
             gray = image
         
-        # Reducir ruido
-        denoised = cv2.fastNlMeansDenoising(gray, h=10)
+        # Ajustar contraste antes de denoising
+        enhanced = self._enhance_contrast(gray)
         
-        # Mejorar contraste
-        enhanced = self._enhance_contrast(denoised)
+        # Reducir ruido con valores más conservadores
+        denoised = cv2.fastNlMeansDenoising(enhanced, h=7)
         
-        # Binarizar
-        binary = self._adaptive_threshold(enhanced)
-        
-        # Corregir rotación si es necesario
-        angle = self._detect_skew(binary)
-        if abs(angle) > 0.5:
-            binary = self._correct_skew(binary, angle)
+        # Umbral adaptativo más suave
+        binary = cv2.adaptiveThreshold(
+            denoised,
+            255,
+            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            cv2.THRESH_BINARY,
+            15, # Aumentado de 11
+            5   # Aumentado de 2
+        )
         
         return binary
 
@@ -319,3 +371,33 @@ class ImagePreprocessor:
             borderMode=cv2.BORDER_REPLICATE
         )
         return corrected
+    
+    def enhance_region(self, image: np.ndarray, region_type: str = "text") -> np.ndarray:
+        """Mejora específica por tipo de región"""
+        if region_type == "text":
+            return self._enhance_text_region(image)
+        elif region_type == "marks":
+            return self._enhance_marks_region(image)
+        return image
+
+    def _enhance_text_region(self, image: np.ndarray) -> np.ndarray:
+        """Optimización para texto"""
+        if len(image.shape) == 3:
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = image
+            
+        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
+        enhanced = clahe.apply(gray)
+        return enhanced
+
+    def _enhance_marks_region(self, image: np.ndarray) -> np.ndarray:
+        """Optimización para detectar marcas"""
+        if len(image.shape) == 3:
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = image
+            
+        blur = cv2.GaussianBlur(gray, (3,3), 0)
+        _, binary = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        return binary
